@@ -1,5 +1,5 @@
 """
-Palette handling — loading, matching, conversion.
+Palette handling – loading, matching, conversion.
 """
 
 import json
@@ -11,7 +11,7 @@ from .config import CONFIG
 
 
 class PaletteManager:
-    """Manages the 256‑colour palette for the X65 format."""
+    """Manages the 256‑colour palette for the X65 format (always 32×8)."""
 
     def __init__(self, source_path: str = None):
         """
@@ -43,11 +43,11 @@ class PaletteManager:
             self._load_from_image()
 
     def _load_from_json(self) -> None:
-        """Load palette from a JSON file."""
+        """Load palette from a JSON file – must be exactly 32 rows × 8 colours."""
         with open(self.path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
-        # If data is a dict, try to extract the list from the "palette" key
+        # Accept a dict with a "palette" key
         if isinstance(data, dict):
             if 'palette' in data:
                 data = data['palette']
@@ -57,55 +57,34 @@ class PaletteManager:
         if not isinstance(data, list):
             raise ValueError("JSON file does not contain a colour list.")
 
-        # Check format: flat list of 256 RGB triplets, or 32×8
-        if len(data) == CONFIG.PALETTE_SIZE and all(isinstance(c, (list, tuple)) and len(c) == 3 for c in data):
-            # Flat list
-            colors = [tuple(c) for c in data]
-        elif len(data) == 32 and all(isinstance(row, list) and len(row) == 8 for row in data):
-            # 32 rows × 8 colours
-            colors = [tuple(color) for row in data for color in row]
-        else:
+        # Must be exactly 32 rows × 8 columns
+        if len(data) != 32 or not all(isinstance(row, list) and len(row) == 8 for row in data):
             raise ValueError(
-                f"Invalid JSON palette format. Expected a flat list of {CONFIG.PALETTE_SIZE} "
-                f"colours or 32×8. Received: {len(data)} elements."
+                "Invalid palette JSON. Expected 32 rows × 8 columns (list of 32 lists, each with 8 colours)."
             )
 
-        self.colors = colors[:CONFIG.PALETTE_SIZE]
-        while len(self.colors) < CONFIG.PALETTE_SIZE:
-            self.colors.append((0, 0, 0))
+        colors = [tuple(color) for row in data for color in row]
+        if len(colors) != CONFIG.PALETTE_SIZE:
+            raise ValueError(f"Palette must contain exactly {CONFIG.PALETTE_SIZE} colours, got {len(colors)}.")
 
+        self.colors = colors
         self._np_array = np.array(self.colors, dtype=np.float32)
         self._weights = np.array(CONFIG.LUMA_WEIGHTS, dtype=np.float32)
 
     def _load_from_image(self) -> None:
-        """Load palette from an image (any aspect ratio, assumed 256 colored cells)."""
+        """Load palette from a PNG image – must be exactly 32 pixels wide and 8 pixels tall."""
         pal_img = Image.open(self.path).convert('RGB')
         w, h = pal_img.size
-        total_pixels = w * h
 
-        # Expect at least 256 pixels
-        if total_pixels < CONFIG.PALETTE_SIZE:
-            raise ValueError(f"Palette image too small: {w}×{h} = {total_pixels} pixels, need at least {CONFIG.PALETTE_SIZE}.")
+        if w != 32 or h != 8:
+            raise ValueError(
+                f"Palette image must be exactly 32×8 pixels (32 columns, 8 rows). "
+                f"Received {w}×{h}."
+            )
 
-        # Sample the center of each cell if the image is not exactly 256 pixels.
-        # We map 256 palette entries onto the image grid in row-major order.
-        colors = []
-        for idx in range(CONFIG.PALETTE_SIZE):
-            # Convert flat index to (col, row) assuming the first 256 pixels are used
-            # If the image has exactly 256 pixels, this just reads them in order.
-            if total_pixels == CONFIG.PALETTE_SIZE:
-                # Fast path: exact match, read pixels directly
-                y = idx // w
-                x = idx % w
-                colors.append(pal_img.getpixel((x, y)))
-            else:
-                # Resize logic: we can resize the image to 256x1 to get a clean palette strip
-                # This handles any aspect ratio, including 32x8, 16x16, etc.
-                pal_strip = pal_img.resize((CONFIG.PALETTE_SIZE, 1), Image.Resampling.NEAREST)
-                r, g, b = pal_strip.getpixel((idx, 0))  # returns (R,G,B) possibly with alpha if not 'RGB'
-                colors.append((r, g, b))
+        # Read pixels in row-major order (left-to-right, top-to-bottom)
+        colors = [pal_img.getpixel((x, y)) for y in range(8) for x in range(32)]
 
-        # Ensure we have exactly 256 colors
         self.colors = colors[:CONFIG.PALETTE_SIZE]
         while len(self.colors) < CONFIG.PALETTE_SIZE:
             self.colors.append((0, 0, 0))
@@ -128,7 +107,7 @@ class PaletteManager:
         return self.colors[idx]
 
     def to_json(self) -> list[list[int]]:
-        """Export palette as a JSON‑ready list."""
+        """Export palette as a JSON‑ready list (flat list of 256 colours)."""
         return [list(c) for c in self.colors]
 
     def to_numpy(self) -> np.ndarray:

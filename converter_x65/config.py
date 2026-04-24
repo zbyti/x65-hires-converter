@@ -21,7 +21,7 @@ class X65Config:
 
     # Palette
     PALETTE_SIZE: int = 256
-    PALETTE_GRID: int = 16  # 16x16 colors
+    # Palette is always 32 columns × 8 rows
 
     # Luminance weights for color matching
     LUMA_WEIGHTS: tuple = (0.299, 0.587, 0.114)
