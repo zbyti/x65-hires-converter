@@ -9,7 +9,7 @@
 
 ## Overview
 
-This tool transforms standard PNG/JPEG images into the X65's native display format:
+This tool transforms standard PNG images into the X65's native display format:
 
 - **Resolution:** 384 × 240 pixels
 - **Tile grid:** 8 × 8 pixels (48 × 30 tiles = 1,440 total)
@@ -55,8 +55,8 @@ converter_x65/
 ├── output_generator.py    # Exports all binary/PNG/JSON/HTML artifacts
 ├── html_template.py       # Self-contained web editor (single-file HTML/JS/CSS)
 ├── server.py              # Threaded HTTP server with POST /save handler
-├── build.py               # Zipapp builder (produces converter_x65.pyz)
 └── __main__.py            # CLI entry point
+build.py                   # Zipapp builder (produces converter_x65.pyz)
 ```
 
 ### Key Design Decisions
