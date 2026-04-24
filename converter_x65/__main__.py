@@ -7,7 +7,7 @@ import argparse
 import os
 import sys
 
-from .config import CONFIG, DEFAULT_PALETTE_JSON_FILES, DEFAULT_PALETTE_PNG, SERVER_PORT
+from .config import CONFIG, SERVER_PORT
 from .image_processing import X65Converter
 from .output_generator import OutputGenerator
 from .server import start_server
@@ -56,30 +56,15 @@ def main() -> int:
         print(f"Error: Input file not found: {args.input_image}")
         return 1
 
-    # Determine palette path using CONFIG defaults
-    palette_path = args.palette
-    if palette_path is None:
-        for json_name in DEFAULT_PALETTE_JSON_FILES:
-            if os.path.exists(json_name):
-                palette_path = json_name
-                break
-        if palette_path is None:
-            palette_path = DEFAULT_PALETTE_PNG
-
-    if not os.path.exists(palette_path):
-        print(f"Error: Palette file not found: {palette_path}")
-        print(f"Place a JSON palette file (e.g. {DEFAULT_PALETTE_JSON_FILES[0]}) in the current directory.")
-        return 1
-
     print(f"Conversion: {args.input_image}")
-    print(f"Palette:    {palette_path}")
+    print(f"Palette:    {args.palette or 'auto‑detect'}")
     print(f"Resolution: {CONFIG.WIDTH}x{CONFIG.HEIGHT}")
     print(f"Tile:       {CONFIG.TILE_SIZE}x{CONFIG.TILE_SIZE}")
     print(f"Tilesets:   {CONFIG.TILESET_COUNT} x {CONFIG.TILES_PER_SET} tiles")
     print("-" * 40)
 
     try:
-        converter = X65Converter(palette_path)
+        converter = X65Converter(args.palette)
         img = converter.prepare_image(args.input_image)
         converter.analyze_blocks(img)
         converter.encode_tiles()

@@ -7,7 +7,7 @@ import os
 import numpy as np
 from PIL import Image
 
-from .config import CONFIG  # ← nowy import
+from .config import CONFIG, DEFAULT_PALETTE_JSON_FILES, DEFAULT_PALETTE_PNG
 
 
 class PaletteManager:
@@ -17,22 +17,24 @@ class PaletteManager:
         """
         Args:
             source_path: Path to a JSON file or a PNG image.
-                         If None, tries to auto‑detect using predefined paths.
+                         If None, auto‑detects using predefined paths.
         """
         if source_path is None:
-            # Use CONFIG defaults for auto‑detection
-            for json_name in CONFIG.DEFAULT_PALETTE_JSON_FILES if hasattr(CONFIG, 'DEFAULT_PALETTE_JSON_FILES') else []:
-                if os.path.exists(json_name):
-                    source_path = json_name
-                    break
-            if source_path is None:
-                source_path = CONFIG.DEFAULT_PALETTE_PNG
+            source_path = self._auto_detect()
 
         self.path = source_path
         self.colors: list[tuple[int, int, int]] = []
         self._np_array: np.ndarray | None = None
         self._weights: np.ndarray | None = None
         self._load()
+
+    @staticmethod
+    def _auto_detect() -> str:
+        """Try to locate a palette file in the current directory."""
+        for json_name in DEFAULT_PALETTE_JSON_FILES:
+            if os.path.exists(json_name):
+                return json_name
+        return DEFAULT_PALETTE_PNG
 
     def _load(self) -> None:
         """Load palette from JSON or PNG with error handling."""
@@ -106,7 +108,6 @@ class PaletteManager:
         self._np_array = np.array(self.colors, dtype=np.float32)
         self._weights = np.array(CONFIG.LUMA_WEIGHTS, dtype=np.float32)
 
-    # dalsze metody bez zmian (closest_index, get_rgb, to_json, to_numpy)
     def closest_index(self, pixel: tuple[int, ...]) -> int:
         if self._np_array is None:
             raise RuntimeError("Palette not initialised")
