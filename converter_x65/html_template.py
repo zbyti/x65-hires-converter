@@ -508,6 +508,7 @@ def generate_viewer_html() -> str:
     const bgHexEl = document.getElementById('bgHex'), fgHexEl = document.getElementById('fgHex');
     const palettePicker = document.getElementById('palettePicker'), paletteGrid = document.getElementById('paletteGrid');
     const btnCopy = document.getElementById('btnCopy'), btnPaste = document.getElementById('btnPaste'), btnSave = document.getElementById('btnSave');
+    const btnToggleGrid = document.getElementById('btnToggleGrid');
     const btnToggleSmoothing = document.getElementById('btnToggleSmoothing');
     const btnHighlightModified = document.getElementById('btnHighlightModified');
     const btnToggleCRT = document.getElementById('btnToggleCRT');
@@ -582,6 +583,11 @@ def generate_viewer_html() -> str:
 
             initPalette();
             drawAll(); updatePanel(0); positionOverlay(0);
+
+            // Set initial toggle titles / styles
+            btnToggleSmoothing.title = smoothingEnabled ? 'Disable smoothing' : 'Enable smoothing';
+            btnToggleGrid.style.background = gridVisible ? '#44ddaa' : '';
+            btnToggleGrid.style.color = gridVisible ? '#0d0d14' : '';
         }} catch(e) {{
             console.error(e);
             alert('Failed to load data. Check the console.');
@@ -784,11 +790,16 @@ def generate_viewer_html() -> str:
         }}
     }};
 
-    document.getElementById('btnToggleGrid').onclick = () => {{ gridVisible = !gridVisible; drawAll(); }};
+    btnToggleGrid.onclick = () => {{
+        gridVisible = !gridVisible;
+        btnToggleGrid.style.background = gridVisible ? '#44ddaa' : '';
+        btnToggleGrid.style.color = gridVisible ? '#0d0d14' : '';
+        drawAll();
+    }};
 
     btnToggleSmoothing.onclick = () => {{
         smoothingEnabled = !smoothingEnabled;
-        btnToggleSmoothing.title = smoothingEnabled ? 'Smoothing: smooth' : 'Smoothing: sharp';
+        btnToggleSmoothing.title = smoothingEnabled ? 'Disable smoothing' : 'Enable smoothing';
         btnToggleSmoothing.style.background = smoothingEnabled ? '#44ddaa' : '';
         btnToggleSmoothing.style.color = smoothingEnabled ? '#0d0d14' : '';
         ctx.imageSmoothingEnabled = smoothingEnabled;
