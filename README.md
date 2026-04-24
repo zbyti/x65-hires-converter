@@ -199,7 +199,7 @@ This project was created through iterative collaboration between multiple large 
 
 Each model contributed to different layers — from low-level bit-encoding protocols and vectorized numpy pipelines to the CRT-shaded web UI and transactional file I/O.
 
-Target platform: [**X65 by Miroslav Němeček**](https://x65.zone/) — a modern 8-bit retro computer.
+Target platform: [**X65 by Tomasz [smokku] Sterna**](https://x65.zone/) — a modern 8-bit retro computer.
 
 ---
 
