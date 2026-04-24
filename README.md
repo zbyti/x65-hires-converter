@@ -84,7 +84,7 @@ The source image is converted to grayscale and thresholded at 128 (configurable)
 Each tile is encoded as **8 bytes** (1 byte per row, MSB = leftmost pixel).
 
 ### Palette Formats
-- **PNG:** 16×16 color grid (samples the center of each cell)
+- **PNG:** 32×8 color grid (samples the center of each cell)
 - **JSON:** flat list of 256 `[R,G,B]` triplets, or 32 rows × 8 columns
 
 ---
