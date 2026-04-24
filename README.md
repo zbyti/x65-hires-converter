@@ -106,7 +106,7 @@ pip install pillow numpy
 ### Option A: Run as a module (development)
 ```bash
 git clone <repo>
-cd converter_x65
+cd x65-hires-converter
 python -m converter_x65 image.png --serve
 ```
 
