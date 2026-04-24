@@ -55,6 +55,7 @@ converter_x65/
 ├── output_generator.py    # Exports all binary/PNG/JSON/HTML artifacts
 ├── html_template.py       # Self-contained web editor (single-file HTML/JS/CSS)
 ├── server.py              # Threaded HTTP server with POST /save handler
+├── __init__.py            # Package init
 └── __main__.py            # CLI entry point
 build.py                   # Zipapp builder (produces converter_x65.pyz)
 ```
