@@ -7,7 +7,7 @@ import argparse
 import os
 import sys
 
-from .config import CONFIG
+from .config import CONFIG, DEFAULT_PALETTE_JSON_FILES, DEFAULT_PALETTE_PNG, SERVER_PORT
 from .image_processing import X65Converter
 from .output_generator import OutputGenerator
 from .server import start_server
@@ -24,31 +24,11 @@ Examples:
   python -m converter_x65 --edit                        # server only
         """
     )
-    parser.add_argument(
-        'input_image',
-        nargs='?',
-        help='Input PNG file (omit for --edit)'
-    )
-    parser.add_argument(
-        '--palette',
-        default=None,
-        help='Palette file (PNG or JSON). Default: auto‑detect.'
-    )
-    parser.add_argument(
-        '--serve',
-        action='store_true',
-        help='After conversion, start the editor server'
-    )
-    parser.add_argument(
-        '--edit',
-        action='store_true',
-        help='Only start the server for existing files'
-    )
-    parser.add_argument(
-        '--verify',
-        action='store_true',
-        help='Check the consistency of generated files'
-    )
+    parser.add_argument('input_image', nargs='?', help='Input PNG file (omit for --edit)')
+    parser.add_argument('--palette', default=None, help='Palette file (PNG or JSON). Default: auto‑detect.')
+    parser.add_argument('--serve', action='store_true', help='After conversion, start the editor server')
+    parser.add_argument('--edit', action='store_true', help='Only start the server for existing files')
+    parser.add_argument('--verify', action='store_true', help='Check the consistency of generated files')
     return parser
 
 
@@ -60,7 +40,7 @@ def main() -> int:
         if not os.path.exists('x65_viewer.html'):
             print("Error: x65_viewer.html does not exist. Run a conversion first.")
             return 1
-        start_server()
+        start_server(port=SERVER_PORT)
         return 0
 
     if args.verify:
@@ -76,19 +56,19 @@ def main() -> int:
         print(f"Error: Input file not found: {args.input_image}")
         return 1
 
-    # Determine palette path
+    # Determine palette path using CONFIG defaults
     palette_path = args.palette
     if palette_path is None:
-        if os.path.exists("X65-palette_32x8_rgb.json"):
-            palette_path = "X65-palette_32x8_rgb.json"
-        elif os.path.exists("x65_palette.json"):
-            palette_path = "x65_palette.json"
-        else:
-            palette_path = "X65_RGB_palette.png"
+        for json_name in DEFAULT_PALETTE_JSON_FILES:
+            if os.path.exists(json_name):
+                palette_path = json_name
+                break
+        if palette_path is None:
+            palette_path = DEFAULT_PALETTE_PNG
 
     if not os.path.exists(palette_path):
         print(f"Error: Palette file not found: {palette_path}")
-        print("Place a JSON palette file (e.g. X65-palette_32x8_rgb.json) in the current directory.")
+        print(f"Place a JSON palette file (e.g. {DEFAULT_PALETTE_JSON_FILES[0]}) in the current directory.")
         return 1
 
     print(f"Conversion: {args.input_image}")
@@ -119,7 +99,7 @@ def main() -> int:
 
     if args.serve:
         print("\n" + "=" * 40)
-        start_server()
+        start_server(port=SERVER_PORT)
 
     return 0
 

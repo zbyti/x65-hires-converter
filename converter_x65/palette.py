@@ -7,7 +7,7 @@ import os
 import numpy as np
 from PIL import Image
 
-from .config import CONFIG
+from .config import CONFIG  # ← nowy import
 
 
 class PaletteManager:
@@ -17,16 +17,16 @@ class PaletteManager:
         """
         Args:
             source_path: Path to a JSON file or a PNG image.
-                         If None, tries to auto‑detect a JSON file.
+                         If None, tries to auto‑detect using predefined paths.
         """
         if source_path is None:
-            # Auto‑detection: look for JSON first, then PNG
-            if os.path.exists("X65-palette_32x8_rgb.json"):
-                source_path = "X65-palette_32x8_rgb.json"
-            elif os.path.exists("x65_palette.json"):
-                source_path = "x65_palette.json"
-            else:
-                source_path = "X65_RGB_palette.png"
+            # Use CONFIG defaults for auto‑detection
+            for json_name in CONFIG.DEFAULT_PALETTE_JSON_FILES if hasattr(CONFIG, 'DEFAULT_PALETTE_JSON_FILES') else []:
+                if os.path.exists(json_name):
+                    source_path = json_name
+                    break
+            if source_path is None:
+                source_path = CONFIG.DEFAULT_PALETTE_PNG
 
         self.path = source_path
         self.colors: list[tuple[int, int, int]] = []
@@ -35,17 +35,27 @@ class PaletteManager:
         self._load()
 
     def _load(self) -> None:
-        """Load palette from JSON or PNG."""
+        """Load palette from JSON or PNG with error handling."""
         ext = os.path.splitext(self.path)[1].lower()
-        if ext == '.json':
-            self._load_from_json()
-        else:
-            self._load_from_image()
+        try:
+            if ext == '.json':
+                self._load_from_json()
+            else:
+                self._load_from_image()
+        except FileNotFoundError:
+            raise ValueError(f"Palette file not found: {self.path}") from None
+        except (json.JSONDecodeError, ValueError) as e:
+            raise ValueError(f"Error loading palette from {self.path}: {e}") from e
 
     def _load_from_json(self) -> None:
         """Load palette from a JSON file – must be exactly 32 rows × 8 colours."""
-        with open(self.path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        try:
+            with open(self.path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            raise
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in palette file: {e}") from e
 
         # Accept a dict with a "palette" key
         if isinstance(data, dict):
@@ -73,16 +83,20 @@ class PaletteManager:
 
     def _load_from_image(self) -> None:
         """Load palette from a PNG image – must be exactly 32 pixels wide and 8 pixels tall."""
-        pal_img = Image.open(self.path).convert('RGB')
-        w, h = pal_img.size
+        try:
+            pal_img = Image.open(self.path).convert('RGB')
+        except FileNotFoundError:
+            raise ValueError(f"Palette image not found: {self.path}") from None
+        except Exception as e:
+            raise ValueError(f"Cannot open palette image {self.path}: {e}") from e
 
+        w, h = pal_img.size
         if w != 32 or h != 8:
             raise ValueError(
                 f"Palette image must be exactly 32×8 pixels (32 columns, 8 rows). "
                 f"Received {w}×{h}."
             )
 
-        # Read pixels in row-major order (left-to-right, top-to-bottom)
         colors = [pal_img.getpixel((x, y)) for y in range(8) for x in range(32)]
 
         self.colors = colors[:CONFIG.PALETTE_SIZE]
@@ -92,8 +106,8 @@ class PaletteManager:
         self._np_array = np.array(self.colors, dtype=np.float32)
         self._weights = np.array(CONFIG.LUMA_WEIGHTS, dtype=np.float32)
 
+    # dalsze metody bez zmian (closest_index, get_rgb, to_json, to_numpy)
     def closest_index(self, pixel: tuple[int, ...]) -> int:
-        """Find the palette index closest to the given pixel."""
         if self._np_array is None:
             raise RuntimeError("Palette not initialised")
         pixel_arr = np.array(pixel[:3], dtype=np.float32)
@@ -102,14 +116,11 @@ class PaletteManager:
         return int(np.argmin(distances))
 
     def get_rgb(self, index: int) -> tuple[int, int, int]:
-        """Return the RGB triplet for a given palette index."""
         idx = max(0, min(CONFIG.PALETTE_SIZE - 1, index))
         return self.colors[idx]
 
     def to_json(self) -> list[list[int]]:
-        """Export palette as a JSON‑ready list (flat list of 256 colours)."""
         return [list(c) for c in self.colors]
 
     def to_numpy(self) -> np.ndarray:
-        """Return a copy of the palette as a NumPy array."""
         return self._np_array.copy()

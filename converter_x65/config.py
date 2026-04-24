@@ -82,3 +82,21 @@ class X65Config:
 
 # Global configuration instance
 CONFIG = X65Config()
+
+# ── File names used across the project ──────────────────────────
+BG_MAP_FILENAME = 'x65_background.map'
+FG_MAP_FILENAME = 'x65_foreground.map'
+MAPS_SPLIT_FILENAME = 'x65_maps_split.bin'
+HIRES_PNG_FILENAME = 'x65_hires_ultra.png'
+SIM_PNG_FILENAME = 'x65_simulation_ultra.png'
+PALETTE_JSON_FILENAME = 'x65_palette.json'
+VIEWER_HTML_FILENAME = 'x65_viewer.html'
+LINEAR_BITMAP_FILENAME = 'x65_hires_linear.bin'
+TILESET_PREFIX = 'x65_tileset_'
+
+# Auto‑detection of palette files
+DEFAULT_PALETTE_JSON_FILES = ("X65-palette_32x8_rgb.json", "x65_palette.json")
+DEFAULT_PALETTE_PNG = "X65_RGB_palette.png"
+
+# HTTP server
+SERVER_PORT = 8000

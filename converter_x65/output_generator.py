@@ -6,97 +6,83 @@ import json
 import os
 from PIL import Image
 
-from .config import CONFIG
+from .config import CONFIG, BG_MAP_FILENAME, FG_MAP_FILENAME, MAPS_SPLIT_FILENAME, \
+    HIRES_PNG_FILENAME, SIM_PNG_FILENAME, PALETTE_JSON_FILENAME, VIEWER_HTML_FILENAME, \
+    LINEAR_BITMAP_FILENAME, TILESET_PREFIX
 from .image_processing import X65Converter
 
 
 class OutputGenerator:
     """Generates and saves all output files for the X65 project."""
 
-    # Output file names
+    # Mapowanie – używa stałych z config.py
     FILES = {
-        'maps_split': 'x65_maps_split.bin',
-        'bg_map': 'x65_background.map',
-        'fg_map': 'x65_foreground.map',
-        'hires_png': 'x65_hires_ultra.png',
-        'sim_png': 'x65_simulation_ultra.png',
-        'palette_json': 'x65_palette.json',
-        'viewer_html': 'x65_viewer.html',
-        'linear_bitmap': 'x65_hires_linear.bin',
+        'maps_split': MAPS_SPLIT_FILENAME,
+        'bg_map': BG_MAP_FILENAME,
+        'fg_map': FG_MAP_FILENAME,
+        'hires_png': HIRES_PNG_FILENAME,
+        'sim_png': SIM_PNG_FILENAME,
+        'palette_json': PALETTE_JSON_FILENAME,
+        'viewer_html': VIEWER_HTML_FILENAME,
+        'linear_bitmap': LINEAR_BITMAP_FILENAME,
     }
 
     def __init__(self, converter: X65Converter):
         self.converter = converter
 
     def save_all(self, serve: bool = False) -> list[str]:
-        """
-        Save all output files.
-
-        Args:
-            serve: If True, also generate files needed by the server
-
-        Returns:
-            list[str]: List of generated files
-        """
         generated = []
 
-        # 1. Colour maps
         bg, fg, combined = self.converter.get_map_bytes()
 
-        with open(self.FILES['maps_split'], 'wb') as f:
+        with open(MAPS_SPLIT_FILENAME, 'wb') as f:
             f.write(combined)
-        generated.append(self.FILES['maps_split'])
+        generated.append(MAPS_SPLIT_FILENAME)
 
-        with open(self.FILES['bg_map'], 'wb') as f:
+        with open(BG_MAP_FILENAME, 'wb') as f:
             f.write(bg)
-        generated.append(self.FILES['bg_map'])
+        generated.append(BG_MAP_FILENAME)
 
-        with open(self.FILES['fg_map'], 'wb') as f:
+        with open(FG_MAP_FILENAME, 'wb') as f:
             f.write(fg)
-        generated.append(self.FILES['fg_map'])
+        generated.append(FG_MAP_FILENAME)
 
-        # 2. Tiles / tilesets
         tilesets = self.converter.get_tilesets()
         for i, tileset in enumerate(tilesets):
-            filename = f'x65_tileset_{i}.bin'
+            filename = f'{TILESET_PREFIX}{i}.bin'
             with open(filename, 'wb') as f:
                 for tile in tileset:
                     f.write(tile)
             generated.append(filename)
             print(f"Saved set {i}: {len(tileset)} chars -> {filename}")
 
-        # 3. Linear bitmap
         linear = self.converter.generate_linear_bitmap()
-        with open(self.FILES['linear_bitmap'], 'wb') as f:
+        with open(LINEAR_BITMAP_FILENAME, 'wb') as f:
             f.write(linear)
-        generated.append(self.FILES['linear_bitmap'])
-        print(f"Saved linear bitmap: {len(linear)} bytes -> {self.FILES['linear_bitmap']}")
+        generated.append(LINEAR_BITMAP_FILENAME)
+        print(f"Saved linear bitmap: {len(linear)} bytes -> {LINEAR_BITMAP_FILENAME}")
 
-        # 4. PNG images
-        self.converter.hires_mask.save(self.FILES['hires_png'])
-        generated.append(self.FILES['hires_png'])
+        if self.converter.hires_mask:
+            self.converter.hires_mask.save(HIRES_PNG_FILENAME)
+            generated.append(HIRES_PNG_FILENAME)
 
-        # Simulation is generated in analyze_blocks, we save it
         if self.converter._last_simulation:
-            self.converter._last_simulation.save(self.FILES['sim_png'])
-            generated.append(self.FILES['sim_png'])
+            self.converter._last_simulation.save(SIM_PNG_FILENAME)
+            generated.append(SIM_PNG_FILENAME)
 
-        # 5. Palette JSON
-        with open(self.FILES['palette_json'], 'w') as f:
+        with open(PALETTE_JSON_FILENAME, 'w') as f:
             json.dump(self.converter.palette.to_json(), f)
-        generated.append(self.FILES['palette_json'])
+        generated.append(PALETTE_JSON_FILENAME)
 
-        # 6. HTML viewer
         from .html_template import generate_viewer_html
         html = generate_viewer_html()
-        with open(self.FILES['viewer_html'], 'w', encoding='utf-8') as f:
+        with open(VIEWER_HTML_FILENAME, 'w', encoding='utf-8') as f:
             f.write(html)
-        generated.append(self.FILES['viewer_html'])
+        generated.append(VIEWER_HTML_FILENAME)
 
         return generated
 
     def print_summary(self, generated: list[str]) -> None:
-        """Print a summary of generated files."""
         print("\nDone! Generated:")
         for name in sorted(set(generated)):
             size = os.path.getsize(name) if os.path.exists(name) else 0
@@ -104,15 +90,7 @@ class OutputGenerator:
 
     @classmethod
     def verify_consistency(cls) -> bool:
-        """
-        Verify the consistency of output file sizes.
-
-        Returns:
-            bool: True if everything matches
-        """
         ok = True
-
-        # Check maps
         for name, expected in [
             (cls.FILES['bg_map'], CONFIG.MAP_SIZE),
             (cls.FILES['fg_map'], CONFIG.MAP_SIZE),
@@ -123,10 +101,8 @@ class OutputGenerator:
                 print(f"[WARN] Missing file: {name}")
                 ok = False
                 continue
-
             actual = os.path.getsize(name)
             if actual != expected:
                 print(f"[ERROR] {name}: expected {expected}, got {actual}")
                 ok = False
-
         return ok
