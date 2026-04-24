@@ -78,24 +78,34 @@ class PaletteManager:
         self._weights = np.array(CONFIG.LUMA_WEIGHTS, dtype=np.float32)
 
     def _load_from_image(self) -> None:
-        """Load palette from an image (default 16×16)."""
+        """Load palette from an image (any aspect ratio, assumed 256 colored cells)."""
         pal_img = Image.open(self.path).convert('RGB')
         w, h = pal_img.size
-        grid = CONFIG.PALETTE_GRID
-        cell_w = w // grid
-        cell_h = h // grid
-        offset_x = cell_w // 2
-        offset_y = cell_h // 2
+        total_pixels = w * h
 
+        # Expect at least 256 pixels
+        if total_pixels < CONFIG.PALETTE_SIZE:
+            raise ValueError(f"Palette image too small: {w}×{h} = {total_pixels} pixels, need at least {CONFIG.PALETTE_SIZE}.")
+
+        # Sample the center of each cell if the image is not exactly 256 pixels.
+        # We map 256 palette entries onto the image grid in row-major order.
         colors = []
-        for row in range(grid):
-            for col in range(grid):
-                x = col * cell_w + offset_x
-                y = row * cell_h + offset_y
-                x = min(x, w - 1)
-                y = min(y, h - 1)
+        for idx in range(CONFIG.PALETTE_SIZE):
+            # Convert flat index to (col, row) assuming the first 256 pixels are used
+            # If the image has exactly 256 pixels, this just reads them in order.
+            if total_pixels == CONFIG.PALETTE_SIZE:
+                # Fast path: exact match, read pixels directly
+                y = idx // w
+                x = idx % w
                 colors.append(pal_img.getpixel((x, y)))
+            else:
+                # Resize logic: we can resize the image to 256x1 to get a clean palette strip
+                # This handles any aspect ratio, including 32x8, 16x16, etc.
+                pal_strip = pal_img.resize((CONFIG.PALETTE_SIZE, 1), Image.Resampling.NEAREST)
+                r, g, b = pal_strip.getpixel((idx, 0))  # returns (R,G,B) possibly with alpha if not 'RGB'
+                colors.append((r, g, b))
 
+        # Ensure we have exactly 256 colors
         self.colors = colors[:CONFIG.PALETTE_SIZE]
         while len(self.colors) < CONFIG.PALETTE_SIZE:
             self.colors.append((0, 0, 0))
