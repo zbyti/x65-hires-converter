@@ -1,4 +1,4 @@
-# x65-hires-converter# X65 Image Converter & Tile Editor
+# X65 Image Converter & Tile Editor
 
 ![Preview](preview.png)
 
