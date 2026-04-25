@@ -7,7 +7,7 @@ import argparse
 import os
 import sys
 
-from .config import CONFIG, SERVER_PORT
+from .config import CONFIG, SERVER_PORT, ANALYSIS_ORIGINAL, ANALYSIS_ADAPTIVE
 from .image_processing import X65Converter
 from .output_generator import OutputGenerator
 from .server import start_server
@@ -29,6 +29,9 @@ Examples:
     parser.add_argument('--serve', action='store_true', help='After conversion, start the editor server')
     parser.add_argument('--edit', action='store_true', help='Only start the server for existing files')
     parser.add_argument('--verify', action='store_true', help='Check the consistency of generated files')
+    parser.add_argument('--method', choices=[ANALYSIS_ORIGINAL, ANALYSIS_ADAPTIVE],
+                        default=ANALYSIS_ORIGINAL,
+                        help='Tile analysis method: "original" (extrema + global threshold) or "adaptive" (local threshold + color centroids)')
     return parser
 
 
@@ -58,13 +61,14 @@ def main() -> int:
 
     print(f"Conversion: {args.input_image}")
     print(f"Palette:    {args.palette or 'auto‑detect'}")
+    print(f"Method:     {args.method}")
     print(f"Resolution: {CONFIG.WIDTH}x{CONFIG.HEIGHT}")
     print(f"Tile:       {CONFIG.TILE_SIZE}x{CONFIG.TILE_SIZE}")
     print(f"Tilesets:   {CONFIG.TILESET_COUNT} x {CONFIG.TILES_PER_SET} tiles")
     print("-" * 40)
 
     try:
-        converter = X65Converter(args.palette)
+        converter = X65Converter(args.palette, method=args.method)
         img = converter.prepare_image(args.input_image)
         converter.analyze_blocks(img)
         converter.encode_tiles()

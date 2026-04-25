@@ -59,7 +59,6 @@ class PaletteManager:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in palette file: {e}") from e
 
-        # Accept a dict with a "palette" key
         if isinstance(data, dict):
             if 'palette' in data:
                 data = data['palette']
@@ -69,7 +68,6 @@ class PaletteManager:
         if not isinstance(data, list):
             raise ValueError("JSON file does not contain a colour list.")
 
-        # Must be exactly 32 rows × 8 columns
         if len(data) != 32 or not all(isinstance(row, list) and len(row) == 8 for row in data):
             raise ValueError(
                 "Invalid palette JSON. Expected 32 rows × 8 columns (list of 32 lists, each with 8 colours)."
@@ -109,11 +107,24 @@ class PaletteManager:
         self._weights = np.array(CONFIG.LUMA_WEIGHTS, dtype=np.float32)
 
     def closest_index(self, pixel: tuple[int, ...]) -> int:
+        """Find the closest palette index using luminance-weighted Euclidean distance."""
         if self._np_array is None:
             raise RuntimeError("Palette not initialised")
         pixel_arr = np.array(pixel[:3], dtype=np.float32)
         diff = self._np_array - pixel_arr
         distances = np.sum(self._weights * (diff ** 2), axis=1)
+        return int(np.argmin(distances))
+
+    def closest_index_redmean(self, pixel: tuple[int, ...]) -> int:
+        """Find the closest palette index using the Redmean perceptual distance formula."""
+        if self._np_array is None:
+            raise RuntimeError("Palette not initialised")
+        pixel_arr = np.array(pixel[:3], dtype=np.float32)
+        r_bar = (pixel_arr[0] + self._np_array[:, 0]) / 2.0
+        dr = self._np_array[:, 0] - pixel_arr[0]
+        dg = self._np_array[:, 1] - pixel_arr[1]
+        db = self._np_array[:, 2] - pixel_arr[2]
+        distances = np.sqrt((2 + r_bar / 256) * dr**2 + 4 * dg**2 + (2 + (255 - r_bar) / 256) * db**2)
         return int(np.argmin(distances))
 
     def get_rgb(self, index: int) -> tuple[int, int, int]:

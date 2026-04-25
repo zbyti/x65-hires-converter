@@ -5,7 +5,7 @@ Core image‑to‑X65 conversion logic.
 import numpy as np
 from PIL import Image, ImageEnhance
 
-from .config import CONFIG
+from .config import CONFIG, ANALYSIS_ORIGINAL
 from .palette import PaletteManager
 from .tile_encoder import TileEncoder, MaskAccessor
 
@@ -16,12 +16,13 @@ class X65Converter:
     Processes an input image into all required output files.
     """
 
-    def __init__(self, palette_path: str):
+    def __init__(self, palette_path: str, method: str = ANALYSIS_ORIGINAL):
         self.palette = PaletteManager(palette_path)
-        self.hires_mask: Image.Image | None = None  # 1‑bit mask
-        self.attr_map: list[tuple[int, int]] = []    # (bg_idx, fg_idx) per tile
-        self.tiles_data: list[bytes] = []            # encoded tiles
-        self._last_simulation: Image.Image | None = None  # for OutputGenerator
+        self.method = method
+        self.hires_mask: Image.Image | None = None
+        self.attr_map: list[tuple[int, int]] = []
+        self.tiles_data: list[bytes] = []
+        self._last_simulation: Image.Image | None = None
 
     def prepare_image(self, input_path: str) -> Image.Image:
         """
@@ -51,13 +52,16 @@ class X65Converter:
         Returns:
             Image.Image: Simulation RGB image
         """
-        # Create monochrome hires mask
+        if self.method == 'adaptive':
+            return self._analyze_blocks_adaptive(img)
+        return self._analyze_blocks_original(img)
+
+    def _analyze_blocks_original(self, img: Image.Image) -> Image.Image:
+        """Original extrema-based global threshold analysis."""
         self.hires_mask = img.convert('L').convert('1')
         pixels_rgb = np.array(img)
 
-        # Prepare simulation image
         simulation = Image.new('RGB', (CONFIG.WIDTH, CONFIG.HEIGHT))
-
         self.attr_map = []
         block = CONFIG.TILE_SIZE
 
@@ -65,10 +69,7 @@ class X65Converter:
             for x in range(0, CONFIG.WIDTH, block):
                 block_pixels = pixels_rgb[y:y+block, x:x+block].reshape(-1, 3)
 
-                # Compute luminance for each pixel in the block
                 brightness = np.dot(block_pixels, list(CONFIG.LUMA_WEIGHTS))
-
-                # Darkest = background, brightest = foreground
                 min_idx = int(np.argmin(brightness))
                 max_idx = int(np.argmax(brightness))
 
@@ -79,13 +80,64 @@ class X65Converter:
                 color0 = self.palette.get_rgb(bg_idx)
                 color1 = self.palette.get_rgb(fg_idx)
 
-                # Fill simulation image
                 for by in range(block):
                     for bx in range(block):
                         bit = self.hires_mask.getpixel((x + bx, y + by))
                         simulation.putpixel((x + bx, y + by),
                                           color1 if bit > 0 else color0)
 
+        self._last_simulation = simulation
+        return simulation
+
+    def _analyze_blocks_adaptive(self, img: Image.Image) -> Image.Image:
+        """
+        Improved analysis using local threshold and color centroids.
+        Uses Redmean color distance for palette matching.
+        """
+        pixels_rgb = np.array(img).astype(np.float32)
+        new_mask = Image.new('1', (CONFIG.WIDTH, CONFIG.HEIGHT))
+        simulation = Image.new('RGB', (CONFIG.WIDTH, CONFIG.HEIGHT))
+        self.attr_map = []
+        block = CONFIG.TILE_SIZE
+
+        for y in range(0, CONFIG.HEIGHT, block):
+            for x in range(0, CONFIG.WIDTH, block):
+                block_pixels = pixels_rgb[y:y+block, x:x+block]
+                flat_pixels = block_pixels.reshape(-1, 3)
+
+                # Local luminance threshold
+                luma = np.dot(flat_pixels, [0.299, 0.587, 0.114])
+                tile_threshold = np.mean(luma)
+
+                binary_tile = (luma > tile_threshold).astype(np.uint8)
+
+                high_pixels = flat_pixels[binary_tile == 1]
+                low_pixels = flat_pixels[binary_tile == 0]
+
+                if len(high_pixels) == 0:
+                    high_pixels = flat_pixels
+                if len(low_pixels) == 0:
+                    low_pixels = flat_pixels
+
+                avg_fg = np.mean(high_pixels, axis=0)
+                avg_bg = np.mean(low_pixels, axis=0)
+
+                # Use Redmean distance
+                bg_idx = self.palette.closest_index_redmean(tuple(avg_bg.astype(int)))
+                fg_idx = self.palette.closest_index_redmean(tuple(avg_fg.astype(int)))
+
+                self.attr_map.append((bg_idx, fg_idx))
+                color_bg = self.palette.get_rgb(bg_idx)
+                color_fg = self.palette.get_rgb(fg_idx)
+
+                for by in range(block):
+                    for bx in range(block):
+                        pixel_val = 1 if luma[by * block + bx] > tile_threshold else 0
+                        new_mask.putpixel((x + bx, y + by), pixel_val)
+                        simulation.putpixel((x + bx, y + by),
+                                          color_fg if pixel_val else color_bg)
+
+        self.hires_mask = new_mask
         self._last_simulation = simulation
         return simulation
 

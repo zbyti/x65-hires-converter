@@ -100,3 +100,7 @@ DEFAULT_PALETTE_PNG = "X65_RGB_palette.png"
 
 # HTTP server
 SERVER_PORT = 8000
+
+# Analysis method identifiers
+ANALYSIS_ORIGINAL = 'original'
+ANALYSIS_ADAPTIVE = 'adaptive'

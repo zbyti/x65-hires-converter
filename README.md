@@ -25,9 +25,11 @@ In addition to batch conversion, the package includes a **self-contained web-bas
 ### Image Conversion
 - **Lanczos resampling** to 384×240
 - **Color/contrast enhancement** (configurable weights)
-- **Per‑tile color analysis** — extracts optimal foreground & background indices from each 8×8 block using luminance‑weighted distance
-- **Hi‑res mask generation** — 1‑bit threshold mask for bit‑plane rendering (default threshold: 128, adjustable in `config.py`)
-- **Palette matching** — weighted Euclidean distance in RGB space
+- **Two analysis algorithms:**
+  - `original` (default): dark/bright pixel extrema per tile + global threshold mask
+  - `adaptive`: local luminance threshold + average colour centroids + perceptual Redmean distance
+- **Hi‑res mask generation** — 1‑bit threshold mask for bit‑plane rendering
+- **Palette matching** — luminance‑weighted Euclidean distance (original) or Redmean (adaptive)
 - **Batch export** of binary tilesets, color maps, linear bitmaps, and PNG previews
 
 ### Web Tile Editor (`--serve` / `--edit`)
@@ -70,23 +72,26 @@ build.py                   # Zipapp builder (produces converter_x65.pyz)
 
 ## Algorithms
 
-### Luminance & Color Extraction
+### `original` (default)
 For each 8×8 tile:
 1. Compute per‑pixel luminance: `Y = 0.299·R + 0.587·G + 0.114·B`
 2. Select the **darkest** pixel as background, **brightest** as foreground
-3. Map both to the nearest palette entry using **luminance‑weighted Euclidean distance**:
+3. Map both to the nearest palette entry using **luminance‑weighted Euclidean distance**
+4. Mask is a global threshold (L→1‑bit conversion with threshold 128)
 
+### `adaptive`
+For each 8×8 tile:
+1. Calculate local luminance average as a dynamic threshold
+2. Pixels above average → foreground group, below → background group
+3. Compute the **average colour** of each group (mini K‑means iteration)
+4. Match these centroids to the palette using **Redmean perceptual distance**
+5. Mask is built tile‑by‑tile, preserving local detail even in dark/bright areas
+
+### Redmean distance (used in `adaptive`)
 ```
-distance² = w_r·(ΔR)² + w_g·(ΔG)² + w_b·(ΔB)²
+ΔC = sqrt( (2 + r̄/256)·ΔR² + 4·ΔG² + (2 + (255−r̄)/256)·ΔB² )
 ```
-
-### Hi‑Res Mask
-The source image is converted to grayscale and thresholded (default 128) to produce a 1‑bit mask.
-Each tile is encoded as **8 bytes** (1 byte per row, MSB = leftmost pixel).
-
-### Palette Formats
-- **PNG:** exactly 32 × 8 pixels with 256 colours — read in row‑major order.
-- **JSON:** 32 rows × 8 columns — a list of 32 lists, each containing 8 `[R,G,B]` triplets.
+where `r̄` is the average Red of the two colours being compared.
 
 ---
 
@@ -130,6 +135,12 @@ Auto‑detects palette in this order:
 1. `X65-palette_32x8_rgb.json`
 2. `x65_palette.json`
 3. `X65_RGB_palette.png`
+
+### Choose analysis method
+```bash
+python -m converter_x65 image.png --method adaptive
+# or --method original (default)
+```
 
 ### Convert + launch web editor
 ```bash
